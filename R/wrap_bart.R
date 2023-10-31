@@ -165,7 +165,7 @@ bart2 <- function(x_train,
 
      # Generating the BART obj
      if(class_model){
-          bart_obj <- cppbart(x_train_scale,
+          bart_obj <- cppbart_CLASS(x_train_scale,
                               y_scale,
                               x_test_scale,
                               xcut_m,

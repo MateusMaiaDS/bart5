@@ -1,5 +1,6 @@
 # Generating a simulation setting
 rm(list=ls())
+devtools::load_all()
 library(mlbench)
 n_ <- 250
 sim_train <- as.data.frame(mlbench.circle(n = n_,d = 2))
