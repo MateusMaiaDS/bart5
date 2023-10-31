@@ -975,8 +975,7 @@ Rcpp::List cppbart(arma::mat x_train,
           double tau_mu,
           double alpha, double beta,
           double a_tau, double d_tau,
-          bool stump,
-          bool no_rotation_bool){
+          bool stump){
 
         // Posterior counter
         int curr = 0;
@@ -1250,8 +1249,7 @@ Rcpp::List cppbart_CLASS(arma::mat x_train,
                    double tau_mu,
                    double alpha, double beta,
                    double a_tau, double d_tau,
-                   bool stump,
-                   bool no_rotation_bool){
+                   bool stump){
 
         // Posterior counter
         int curr = 0;

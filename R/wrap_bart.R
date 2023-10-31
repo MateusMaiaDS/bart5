@@ -1,5 +1,5 @@
 ## Bart
-#' @useDynLib bart3
+#' @useDynLib bart5
 #' @importFrom Rcpp sourceCpp
 #'
 # A fucction to retrive the number which are the factor columns
@@ -24,14 +24,25 @@ bart2 <- function(x_train,
                   df = 3,
                   sigquant = 0.9,
                   kappa = 2,
-                  tau = 100,
                   scale_bool = TRUE,
                   stump = FALSE,
-                  no_rotation_bool = FALSE,
                   numcut = 100L, # Defining the grid of split rules
                   usequants = FALSE
                   ) {
 
+
+     # Changing to a classification model
+     if(length(unique(y))==2){
+        class_model <- TRUE
+     } else {
+        class_model <- FALSE
+     }
+
+     if(class_model){
+          if(!identical(sort(unique(y)),c(0,1))){
+               stop(" Use the y as c(0,1) vector for the classification model.")
+          }
+     }
 
      # Verifying if x_train and x_test are matrices
      if(!is.data.frame(x_train) || !is.data.frame(x_test)){
@@ -81,9 +92,6 @@ bart2 <- function(x_train,
              x_test_scale[,i] <- normalize_covariates_bart(y = x_test_scale[,i],a = x_min[i], b = x_max[i])
      }
 
-     aux_t <- bartModelMatrix(X = x_train_scale,numcut = numcut)
-     print(dim(aux_t$xinfo))
-     print(dim(x_train_scale))
 
 
      # Creating the numcuts matrix of splitting rules
@@ -100,11 +108,6 @@ bart2 <- function(x_train,
      }
 
 
-     if(!(sum(t(aux_t$xinfo)==xcut_m)==(nrow(xcut_m)*ncol(xcut_m)))){
-             stop("Something wrong here")
-     }
-
-
      # Scaling the y
      min_y <- min(y)
      max_y <- max(y)
@@ -116,12 +119,21 @@ bart2 <- function(x_train,
      # Scaling "y"
      if(scale_bool){
         y_scale <- normalize_bart(y = y,a = min_y,b = max_y)
-        tau_mu <- (4*n_tree*(kappa^2))
+        if(class_model){
+             tau_mu <- (n_tree*(kappa^2))/(9)
+        } else {
+             tau_mu <- (4*n_tree*(kappa^2))
+        }
 
      } else {
         y_scale <- y
 
-        tau_mu <- (4*n_tree*(kappa^2))/((max_y-min_y)^2)
+        # Changing the prior to adapt the classifcation context
+        if(class_model){
+               tau_mu <- (n_tree*(kappa^2))/(9)
+        } else {
+               tau_mu <- (4*n_tree*(kappa^2))/((max_y-min_y)^2)
+        }
      }
 
      # Getting the naive sigma value
@@ -137,72 +149,120 @@ bart2 <- function(x_train,
 
 
      # Call the bart function
-     # tau_init <- tau
-     tau_init <- nsigma^(-2)
+     if(class_model){
+          tau_init <- 1
+     } else {
+          tau_init <- nsigma^(-2)
+     }
 
-     mu_init <- mean(y_scale)
+     # Change the mu init
+     mu_init <- 0.0
 
      # Creating the vector that stores all trees
      all_tree_post <- vector("list",length = round(n_mcmc-n_burn))
 
+
+
      # Generating the BART obj
-     bart_obj <- cppbart(x_train_scale,
-          y_scale,
-          x_test_scale,
-          xcut_m,
-          n_tree,
-          node_min_size,
-          n_mcmc,
-          n_burn,
-          tau_init,
-          mu_init,
-          tau_mu,
-          alpha,
-          beta,
-          a_tau,d_tau,
-          stump,
-          no_rotation_bool)
-
-
-     if(scale_bool){
-             # Tidying up the posterior elements
-             y_train_post <- unnormalize_bart(z = bart_obj[[1]],a = min_y,b = max_y)
-             y_test_post <- unnormalize_bart(z = bart_obj[[2]],a = min_y,b = max_y)
-             for(i in 1:round(n_mcmc-n_burn)){
-                     all_tree_post[[i]] <-  unnormalize_bart(z = bart_obj[[4]][,,i],a = min_y,b = max_y)
-             }
-             tau_post <- bart_obj[[3]]/((max_y-min_y)^2)
-             all_tau_post <- bart_obj[[7]]/((max_y-min_y)^2)
+     if(class_model){
+          bart_obj <- cppbart(x_train_scale,
+                              y_scale,
+                              x_test_scale,
+                              xcut_m,
+                              n_tree,
+                              node_min_size,
+                              n_mcmc,
+                              n_burn,
+                              tau_init,
+                              mu_init,
+                              tau_mu,
+                              alpha,
+                              beta,
+                              a_tau,d_tau,
+                              stump)
      } else {
-             y_train_post <- bart_obj[[1]]
-             y_test_post <- bart_obj[[2]]
-             tau_post <- bart_obj[[3]]
-             for(i in 1:round(n_mcmc-n_burn)){
-                     all_tree_post[[i]] <-  bart_obj[[4]][,,i]
-             }
-             all_tau_post <- bart_obj[[7]]
+          bart_obj <- cppbart(x_train_scale,
+                              y_scale,
+                              x_test_scale,
+                              xcut_m,
+                              n_tree,
+                              node_min_size,
+                              n_mcmc,
+                              n_burn,
+                              tau_init,
+                              mu_init,
+                              tau_mu,
+                              alpha,
+                              beta,
+                              a_tau,d_tau,
+                              stump)
+     }
 
 
+     if(class_model){
+          y_hat_train_probit_post <- bart_obj[[1]]
+          y_hat_test_probit_post <- bart_obj[[2]]
+          y_hat_train_probit_mean <- apply(bart_obj[[1]],1,mean)
+          y_hat_test_probit_mean <- apply(bart_obj[[2]],1,mean)
+          y_hat_class <- ifelse(y_hat_train_probit_mean>0,1,0)
+          y_hat_test_class <- ifelse(y_hat_test_probit_mean>0,1,0)
+
+     } else {
+
+          # For the regression model
+          if(scale_bool){
+               # Tidying up the posterior elements
+               y_train_post <- unnormalize_bart(z = bart_obj[[1]],a = min_y,b = max_y)
+               y_test_post <- unnormalize_bart(z = bart_obj[[2]],a = min_y,b = max_y)
+               for(i in 1:round(n_mcmc-n_burn)){
+                    all_tree_post[[i]] <-  unnormalize_bart(z = bart_obj[[4]][,,i],a = min_y,b = max_y)
+               }
+               tau_post <- bart_obj[[3]]/((max_y-min_y)^2)
+               all_tau_post <- bart_obj[[7]]/((max_y-min_y)^2)
+          } else {
+               y_train_post <- bart_obj[[1]]
+               y_test_post <- bart_obj[[2]]
+               tau_post <- bart_obj[[3]]
+               for(i in 1:round(n_mcmc-n_burn)){
+                    all_tree_post[[i]] <-  bart_obj[[4]][,,i]
+               }
+               all_tau_post <- bart_obj[[7]]
+          }
+     }
+
+     # Return the list object
+     if(class_model){
+
+          # Saving the objects into a list for the class model
+          list_obj <- list(y_hat_probit_post = y_hat_train_probit_post,
+                           y_hat_test_probit_post = y_hat_test_probit_post,
+                           y_hat_train_probit_mean = y_hat_train_probit_mean,
+                           y_hat_test_probit_mean = y_hat_test_probit_mean,
+                           y_hat_class = y_hat_class,
+                           y_hat_test_class = y_hat_test_class)
+     } else {
+          # Saving the objects into a list for the regression model
+          list_obj <- list(y_hat = y_train_post,
+               y_hat_test = y_test_post,
+               tau_post = tau_post,
+               all_tau_post = all_tau_post,
+               all_tree_post = all_tree_post,
+               prior = list(n_tree = n_tree,
+                            alpha = alpha,
+                            beta = beta,
+                            tau_mu = tau_mu,
+                            a_tau = a_tau,
+                            d_tau = d_tau),
+               mcmc = list(n_mcmc = n_mcmc,
+                           n_burn = n_burn),
+               data = list(x_train = x_train,
+                           y = y,
+                           x_test = x_test,
+                           move_proposal = bart_obj[[5]],
+                           move_acceptance = bart_obj[[6]]))
      }
 
      # Return the list with all objects and parameters
-     return(list(y_hat = y_train_post,
-                 y_hat_test = y_test_post,
-                 tau_post = tau_post,
-                 all_tau_post = all_tau_post,
-                 all_tree_post = all_tree_post,
-                 prior = list(n_tree = n_tree,
-                              alpha = alpha,
-                              beta = beta,
-                              tau_mu = tau_mu,
-                              a_tau = a_tau,
-                              d_tau = d_tau),
-                 mcmc = list(n_mcmc = n_mcmc,
-                             n_burn = n_burn),
-                 data = list(x_train = x_train,
-                             y = y,
-                             x_test = x_test,
-                             move_proposal = bart_obj[[5]],
-                             move_acceptance = bart_obj[[6]])))
+     return(list_obj)
 }
 
