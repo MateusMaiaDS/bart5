@@ -1339,8 +1339,6 @@ Rcpp::List cppbart_CLASS(arma::mat x_train,
                         // Creating the auxliar prediction vector
                         arma::vec y_hat(data.y.n_rows,arma::fill::zeros);
                         arma::vec prediction_test(data.x_test.n_rows,arma::fill::zeros);
-                        arma::vec y_hat_var(data.y.n_rows,arma::fill::zeros);
-                        arma::vec y_hat_test_var(data.x_test.n_rows,arma::fill::zeros);
 
                         // cout << "Residuals error "<< endl;
                         // Updating the partial residuals
@@ -1398,7 +1396,6 @@ Rcpp::List cppbart_CLASS(arma::mat x_train,
 
                 prediction_test_sum = sum(tree_fits_store_test,1);
 
-
                 // std::cout << "Error Tau: " << data.tau<< endl;
                 update_z(z_train,prediction_train_sum, data);
 
@@ -1406,8 +1403,8 @@ Rcpp::List cppbart_CLASS(arma::mat x_train,
                 // std::cout << " All good " << endl;
                 if(i >= n_burn){
                         // Storing the predictions
-                        y_train_hat_post.col(curr) = arma::normcdf(prediction_train_sum);
-                        y_test_hat_post.col(curr) = arma::normcdf(prediction_test_sum);
+                        y_train_hat_post.col(curr) = prediction_train_sum;
+                        y_test_hat_post.col(curr) = prediction_test_sum;
 
 
                         all_tree_post.slice(curr) = tree_fits_store;

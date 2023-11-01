@@ -118,11 +118,14 @@ bart2 <- function(x_train,
 
      # Scaling "y"
      if(scale_bool){
-        y_scale <- normalize_bart(y = y,a = min_y,b = max_y)
+
         if(class_model){
-             tau_mu <- (n_tree*(kappa^2))/(9)
+                y_scale <- y
+                tau_mu <- (n_tree*(kappa^2))/(9)
+
         } else {
-             tau_mu <- (4*n_tree*(kappa^2))
+                y_scale <- normalize_bart(y = y,a = min_y,b = max_y)
+                tau_mu <- (4*n_tree*(kappa^2))
         }
 
      } else {

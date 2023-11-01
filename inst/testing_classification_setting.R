@@ -2,7 +2,7 @@
 rm(list=ls())
 devtools::load_all()
 library(mlbench)
-n_ <- 250
+n_ <- 100
 sim_train <- as.data.frame(mlbench.circle(n = n_,d = 2))
 sim_test <- as.data.frame(mlbench.circle(n = n_,d = 2))
 sim_train$classes <- ifelse(sim_train$classes == 2, 1,0)
